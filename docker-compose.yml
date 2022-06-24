@@ -1,0 +1,92 @@
+version: "3.7"
+services:
+  web:
+    container_name: nginx_for_sale
+    image: nginx:latest
+    restart: always
+    ports:
+      - 80:80
+    networks:
+      - net_for_sale
+    volumes:
+      - ./.docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./.docker/nginx/localhost.for_sale.com.br.conf:/etc/nginx/conf.d/localhost.for_sale.com.br.conf
+
+  php:
+    container_name: php_for_sale
+    image: for_sale/php:8.0
+    restart: always
+    build:
+      context: ./.docker/php
+    volumes:
+      - ${PWD}/:/var/www/html
+      - ./.docker/php/from-docker-configuration.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+    networks:
+      - net_for_sale
+
+  postgres:
+    container_name: postgres_for_sale
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=for_sale
+      - POSTGRES_USER=for_sale
+      - POSTGRES_PASSWORD=for_sale
+      - TZ=GMT
+    ports:
+      - 5432:5432
+    networks:
+      - net_for_sale
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    container_name: redis_for_sale
+    image: "redis:alpine"
+    restart: always
+    command: redis-server --requirepass guest
+    environment:
+      REDIS_PASSWORD: 123456
+    ports:
+      - "6379:6379"
+    networks:
+      - net_for_sale
+
+  rabbitmq:
+    container_name: rabbitmq_for_sale
+    image: rabbitmq:3.8.3-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      "RABBITMQ_ERLANG_COOKIE": "unique-erlang-cookie"
+    networks:
+      - net_for_sale
+    ports:
+      - '4369:4369'
+      - '5671:5671'
+      - '5672:5672'
+      - '25672:25672'
+      - '15672:15672'
+
+  apache:
+    container_name: apache_for_sale
+    restart: always
+    image: 'bitnami/apache:latest'
+    ports:
+      - 8080:8080
+    depends_on:
+      - php
+    volumes:
+      - ${PWD}/.docker/apache:/vhosts
+networks:
+  net_for_sale:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: bind
+      device: ${PWD}/.docker/postgres/data
